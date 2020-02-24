@@ -1,5 +1,6 @@
 package org.broadinstitute.hellbender.tools.walkers.vqsr;
 
+import org.apache.commons.lang.StringUtils;
 import org.broadinstitute.hellbender.CommandLineProgramTest;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
 import org.broadinstitute.hellbender.exceptions.UserException;
@@ -27,7 +28,7 @@ import java.util.stream.Stream;
  */
 public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
 
-    private final String[] VQSRParamsWithResources =
+    private final String[] VQSRSNPParamsWithResources =
         new String[] {
             "--variant",
             getLargeVQSRTestDataDir() + "phase1.projectConsensus.chr20.1M-10M.raw.snps.vcf",
@@ -43,6 +44,62 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
             "-mode", "SNP",
             "--" + StandardArgumentDefinitions.ADD_OUTPUT_VCF_COMMANDLINE, "false"
         };
+
+    private final String[] VQSRSNPsWithAnnotationDupe =
+            new String[] {
+                    "--variant",
+                    getLargeVQSRTestDataDir() + "phase1.projectConsensus.chr20.1M-10M.raw.snps.vcf",
+                    "-L","20:1,000,000-10,000,000",
+                    "--resource:known,known=true,prior=10.0",
+                    getLargeVQSRTestDataDir() + "dbsnp_132_b37.leftAligned.20.1M-10M.vcf",
+                    "--resource:truth_training1,truth=true,training=true,prior=15.0",
+                    getLargeVQSRTestDataDir() + "sites_r27_nr.b37_fwd.20.1M-10M.vcf",
+                    "--resource:truth_training2,training=true,truth=true,prior=12.0",
+                    getLargeVQSRTestDataDir() + "Omni25_sites_1525_samples.b37.20.1M-10M.vcf",
+                    "-an", "QD", "-an", "HaplotypeScore", "-an", "HRun", "-an", "HRun",
+                    "--trust-all-polymorphic", // for speed
+                    "-mode", "SNP",
+                    "--" + StandardArgumentDefinitions.ADD_OUTPUT_VCF_COMMANDLINE, "false"
+            };
+
+    private final String[] VQSRBothParamsWithResources =
+            new String[] {
+                    "--variant",
+                    getLargeVQSRTestDataDir() + "phase1.projectConsensus.chr20.1M-10M.raw.snps.vcf",
+                    "--variant",
+                    getLargeVQSRTestDataDir() + "g94982_20_1m_10m_python_2dcnn.indels.vcf.gz",
+                    "-L","20:1,000,000-10,000,000",
+                    "--resource:known,known=true,prior=10.0",
+                    getLargeVQSRTestDataDir() + "dbsnp_132_b37.leftAligned.20.1M-10M.vcf",
+                    "--resource:truth_training1,truth=true,training=true,prior=15.0",
+                    getLargeVQSRTestDataDir() + "sites_r27_nr.b37_fwd.20.1M-10M.vcf",
+                    "--resource:truth_training2,training=true,truth=true,prior=12.0",
+                    getLargeVQSRTestDataDir() + "Omni25_sites_1525_samples.b37.20.1M-10M.vcf",
+                    "-an", "QD", "-an", "HaplotypeScore", "-an", "HRun",
+                    "--trust-all-polymorphic", // for speed
+                    "-mode", "BOTH",
+                    "--" + StandardArgumentDefinitions.ADD_OUTPUT_VCF_COMMANDLINE, "false"
+            };
+
+    private final String[] VQSRBothAggregateParamsWithResources =
+            new String[] {
+                    "--variant",
+                    getLargeVQSRTestDataDir() + "phase1.projectConsensus.chr20.1M-10M.raw.snps.vcf",
+                    "--aggregate",
+                    getLargeVQSRTestDataDir() + "g94982_20_1m_10m_python_2dcnn.indels.vcf.gz",
+                    "-L","20:1,000,000-10,000,000",
+                    "--resource:known,known=true,prior=10.0",
+                    getLargeVQSRTestDataDir() + "dbsnp_132_b37.leftAligned.20.1M-10M.vcf",
+                    "--resource:truth_training1,truth=true,training=true,prior=15.0",
+                    getLargeVQSRTestDataDir() + "sites_r27_nr.b37_fwd.20.1M-10M.vcf",
+                    "--resource:truth_training2,training=true,truth=true,prior=12.0",
+                    getLargeVQSRTestDataDir() + "Omni25_sites_1525_samples.b37.20.1M-10M.vcf",
+                    "-an", "QD", "-an", "HaplotypeScore", "-an", "HRun",
+                    "--trust-all-polymorphic", // for speed
+                    "-mode", "BOTH",
+                    "--" + StandardArgumentDefinitions.ADD_OUTPUT_VCF_COMMANDLINE, "false",
+                    " --output %s" + " -tranches-file %s"
+            };
 
     private final String[] alleleSpecificVQSRParams =
         new String[] {
@@ -108,8 +165,12 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
     @DataProvider(name="VarRecalSNP")
     public Object[][] getVarRecalSNPData() {
         return new Object[][] {
-            {
-                VQSRParamsWithResources,
+                {VQSRSNPsWithAnnotationDupe,
+                        getLargeVQSRTestDataDir() + "expected/SNPDefaultTranches.txt",
+                        getLargeVQSRTestDataDir() + "snpRecal.vcf"
+                },
+                {
+                    VQSRSNPParamsWithResources,
                 getLargeVQSRTestDataDir() + "expected/SNPDefaultTranches.txt",
                 getLargeVQSRTestDataDir() + "snpRecal.vcf"
             },
@@ -122,11 +183,18 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
         };
     }
 
+    @DataProvider(name="BadVarRecal")
+    public Object[][] BadVarRecal() {
+        return new Object[][] {
+
+        };
+    }
+
     @DataProvider(name="VarRecalSNPAlternateTranches")
     public Object[][] getVarRecalSNPAlternateTranchesData() {
         return new Object[][] {
                 {
-                    VQSRParamsWithResources,
+                        VQSRSNPParamsWithResources,
                     getLargeVQSRTestDataDir() + "expected/SNPAlternateTranches.txt",
                     getLargeVQSRTestDataDir() + "snpRecal.vcf"
                 },
@@ -143,7 +211,7 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
     public Object[][] getSNPRecalCommand() {
         return new Object[][] {
                 {
-                    VQSRParamsWithResources
+                        VQSRBothParamsWithResources
                 }
         };
     }
@@ -184,6 +252,11 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
 
     @Test(dataProvider = "VarRecalSNP")
     public void testVariantRecalibratorSNP(final String[] params, final String tranchesPath, final String recalPath) throws IOException {
+        doSNPTest(params, tranchesPath, recalPath);
+    }
+
+    @Test(dataProvider = "BadVarRecal", expectedExceptions = {UserException.BadInput.class})
+    public void testBadVarRecalCommand(final String[] params, final String tranchesPath, final String recalPath) throws IOException {
         doSNPTest(params, tranchesPath, recalPath);
     }
 
@@ -264,6 +337,33 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
                         getLargeVQSRTestDataDir() + "indelRecal.vcf",
                         getLargeVQSRTestDataDir() + "expected/indelTranches.txt"));
         spec.executeTest("testVariantRecalibratorIndel"+  inputFile, this);
+    }
+
+    @Test
+    public void testBothRecalMode() throws IOException {
+        final String args = StringUtils.join(VQSRBothParamsWithResources, " ");
+
+        final IntegrationTestSpec spec = new IntegrationTestSpec(
+                args + " --output %s -tranches-file %s",
+                Arrays.asList(
+                // the "expected" vcf is not in the expected dir because it [should be] used
+                // as input for a ApplyVQSR test
+                getLargeVQSRTestDataDir() + "bothRecal.vcf",
+                getLargeVQSRTestDataDir() + "expected/bothTranches.txt"));
+        spec.executeTest("testBothRecalMode", this);
+    }
+
+    @Test(enabled=false)
+    public void testBothAggregateRecalMode() throws IOException {
+        final String args = StringUtils.join(VQSRBothAggregateParamsWithResources, " ");
+
+        final IntegrationTestSpec spec = new IntegrationTestSpec(
+                args, Arrays.asList(
+                // the "expected" vcf is not in the expected dir because it [should be] used
+                // as input for a ApplyVQSR test
+                getLargeVQSRTestDataDir() + "bothRecal.vcf",
+                getLargeVQSRTestDataDir() + "expected/bothTranches.txt"));
+        spec.executeTest("testBothRecalMode", this);
     }
 
     private final String tmpDir = createTempDir(this.getTestedClassName()).getAbsolutePath();
