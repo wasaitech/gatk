@@ -78,7 +78,8 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
                     "-an", "QD", "-an", "HaplotypeScore", "-an", "HRun",
                     "--trust-all-polymorphic", // for speed
                     "-mode", "BOTH",
-                    "--" + StandardArgumentDefinitions.ADD_OUTPUT_VCF_COMMANDLINE, "false"
+                    "--" + StandardArgumentDefinitions.ADD_OUTPUT_VCF_COMMANDLINE, "false",
+                    "--max-gaussians", "6"
             };
 
     private final String[] VQSRBothAggregateParamsWithResources =
@@ -98,7 +99,8 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
                     "--trust-all-polymorphic", // for speed
                     "-mode", "BOTH",
                     "--" + StandardArgumentDefinitions.ADD_OUTPUT_VCF_COMMANDLINE, "false",
-                    " --output %s" + " -tranches-file %s"
+                    " --output %s" + " -tranches-file %s",
+                    "--max-gaussians", "6"
             };
 
     private final String[] alleleSpecificVQSRParams =
@@ -353,7 +355,7 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
         spec.executeTest("testBothRecalMode", this);
     }
 
-    @Test(enabled=false)
+    @Test
     public void testBothAggregateRecalMode() throws IOException {
         final String args = StringUtils.join(VQSRBothAggregateParamsWithResources, " ");
 
@@ -361,8 +363,8 @@ public class VariantRecalibratorIntegrationTest extends CommandLineProgramTest {
                 args, Arrays.asList(
                 // the "expected" vcf is not in the expected dir because it [should be] used
                 // as input for a ApplyVQSR test
-                getLargeVQSRTestDataDir() + "bothRecal.vcf",
-                getLargeVQSRTestDataDir() + "expected/bothTranches.txt"));
+                getLargeVQSRTestDataDir() + "bothRecalWithAggregate.vcf",
+                getLargeVQSRTestDataDir() + "expected/bothTranchesWithAggregate.txt"));
         spec.executeTest("testBothRecalMode", this);
     }
 
