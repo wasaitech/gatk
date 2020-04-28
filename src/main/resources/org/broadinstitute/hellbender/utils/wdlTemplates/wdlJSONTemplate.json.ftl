@@ -1,6 +1,7 @@
 {
 <#--- Store positional args in a WDL arg called "positionalArgs"--->
 <#assign positionalArgs="positionalArgs"/>
+  "${name}.docker_image": "String",
   "${name}.gatk": "String",
 <#assign remainingArgCount=arguments.required?size + arguments.optional?size + arguments.common?size/>
 <@taskinput heading="Positional Arguments" argsToUse=arguments.positional remainingCount=remainingArgCount/>
@@ -18,8 +19,8 @@
             <#list companionResources[arg.name] as companion>
 <#noparse>  "</#noparse>${name}.${companion.name?substring(2)}<#noparse>"</#noparse>: null,
             </#list>
-        </#if>
-    <#if heading?starts_with("Positional")>
+      </#if>
+  <#if heading?starts_with("Positional")>
 <#noparse>  "</#noparse>${name}.${positionalArgs}<#noparse>"</#noparse>: <#rt/>
       <#else>
 <#noparse>  "</#noparse>${name}.${arg.name?substring(2)}<#noparse>"</#noparse>: <#rt/>

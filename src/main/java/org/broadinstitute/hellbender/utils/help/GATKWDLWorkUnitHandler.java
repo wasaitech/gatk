@@ -95,7 +95,7 @@ public class GATKWDLWorkUnitHandler extends WDLWorkUnitHandler {
                                 argumentClass,
                                 contextMessage));
             }
-            final Pair<String, String> typeConversionPair = getJavaWDLTypeConversion(argumentClass);
+            final Pair<String, String> typeConversionPair = transformToWDLType(argumentClass);
             convertedWDLType = docType.replaceFirst("FeatureInput\\[[a-zA-Z0-9?]+\\]", typeConversionPair.getValue());
         } else {
             return super.convertJavaTypeToWDLType(argumentClass, docType, contextMessage);
@@ -111,9 +111,9 @@ public class GATKWDLWorkUnitHandler extends WDLWorkUnitHandler {
      * @return a String pair representing the original and replacement type text, or null if no conversion is available
      */
     @Override
-    protected Pair<String, String> getJavaWDLTypeConversion(final Class<?> argumentClass) {
+    protected Pair<String, String> transformToWDLType(final Class<?> argumentClass) {
         Pair<String, String> conversion = javaToWDLTypeMap.get(argumentClass);
-        return conversion == null ? super.getJavaWDLTypeConversion(argumentClass) : conversion;
+        return conversion == null ? super.transformToWDLType(argumentClass) : conversion;
     }
 
     /**

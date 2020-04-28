@@ -13,7 +13,10 @@ version 1.0
 # ${summary}
 #
 #  General Workflow (non-tool) Arguments
-#    ${"gatk"?right_pad(50)}Location of gatk used to run this workflow
+#    ${"dockerImage"?right_pad(50)} Docker image for this workflow
+#    ${"gatk"?right_pad(50)} Location of gatk to run for this workflow
+#    ${"memoryRequirements"?right_pad(50)} Runtime memory requirements for this workflow
+#    ${"diskRequirements"?right_pad(50)} Runtime disk requirements for this workflow
 #
 <#if arguments.positional?size != 0>
 <@addArgumentDescriptions heading="Positional Tool Arguments" argsToUse=arguments.positional/>
@@ -34,8 +37,14 @@ version 1.0
 workflow ${name} {
 
   input {
-    #GATK location
+    #Docker to use
+    String dockerImage
+    #App location
     String gatk
+    #Memory to use
+    String memoryRequirements
+    #Disk requirements for this workflow
+    String diskRequirements
     <@defineWorkflowInputs heading="Positional Arguments" argsToUse=arguments.positional/>
     <@defineWorkflowInputs heading="Required Arguments" argsToUse=arguments.required/>
     <@defineWorkflowInputs heading="Optional Tool Arguments" argsToUse=arguments.optional/>
@@ -46,9 +55,15 @@ workflow ${name} {
   call ${name}Task {
 
     input:
-
-    #GATK location
+    #Docker
+    ${"dockerImage"?right_pad(50)} = dockerImage,
+    #App location
     ${"gatk"?right_pad(50)} = gatk,
+    #Memory to use
+    ${"memoryRequirements"?right_pad(50)} = memoryRequirements,
+    #Disk requirements for this workflow
+    ${"diskRequirements"?right_pad(50)} = diskRequirements,
+
     <@callTaskInputs heading="Positional Arguments" argsToUse=arguments.positional/>
     <@callTaskInputs heading="Required Arguments" argsToUse=arguments.required/>
     <@callTaskInputs heading="Optional Tool Arguments" argsToUse=arguments.optional/>
@@ -64,7 +79,10 @@ workflow ${name} {
 task ${name}Task {
 
   input {
+    String dockerImage
     String gatk
+    String memoryRequirements
+    String diskRequirements
     <@defineTaskInputs heading="Positional Arguments" argsToUse=arguments.positional/>
     <@defineTaskInputs heading="Required Arguments" argsToUse=arguments.required/>
     <@defineTaskInputs heading="Optional Tool Arguments" argsToUse=arguments.optional/>
@@ -82,9 +100,9 @@ task ${name}Task {
 
   <#if runtimeProperties?? && runtimeProperties?size != 0>
   runtime {
-      <#if runtimeProperties.memory != "">
-    memory: "${runtimeProperties.memory}"
-      </#if>
+      docker: dockerImage
+      memory: memoryRequirements
+      disks: diskRequirements
   }
   </#if>
 
@@ -204,7 +222,7 @@ task ${name}Task {
     ${outputType} ${name}Task_${outputName?substring(2)} = <#noparse>"${</#noparse>${outputName?substring(2)}<#noparse>}"</#noparse>
             <#if companionResources?? && companionResources[outputName]??>
                 <#list companionResources[outputName] as companion>
-    ${companion.type} ${name}${companion.name?substring(2)} = <#noparse>"${</#noparse>${companion.name?substring(2)}<#noparse>}"</#noparse>
+    ${companion.type} ${name}Task_${companion.name?substring(2)} = <#noparse>"${</#noparse>${companion.name?substring(2)}<#noparse>}"</#noparse>
                 </#list>
             </#if>
         </#list>
