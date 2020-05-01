@@ -10,7 +10,6 @@ import org.apache.spark.broadcast.Broadcast;
 import org.broadinstitute.hellbender.engine.spark.datasources.ReferenceMultiSparkSource;
 import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection;
-import org.broadinstitute.hellbender.tools.spark.sv.discovery.AnnotatedVariantProducer;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SimpleSVType;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoveryInputMetaData;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoveryUtils;
@@ -84,12 +83,11 @@ public class ContigChimericAlignmentIterativeInterpreter {
                             .mapToPair(noveltyAndEvidence -> new Tuple2<>(inferSimpleTypeFromNovelAdjacency(noveltyAndEvidence._1, referenceBroadcast.getValue()),       // type inference based on novel adjacency and evidence alignments
                                     new SimpleNovelAdjacencyAndChimericAlignmentEvidence(noveltyAndEvidence._1, noveltyAndEvidence._2)))
                             .map(noveltyTypeAndEvidence ->
-                                    AnnotatedVariantProducer
+                                    noveltyTypeAndEvidence._2
                                         .produceAnnotatedVcFromAssemblyEvidence(
-                                                noveltyTypeAndEvidence._1, noveltyTypeAndEvidence._2,
-                                                referenceBroadcast,
-                                                referenceSequenceDictionaryBroadcast,
-                                                cnvCallsBroadcast,
+                                                noveltyTypeAndEvidence._1,
+                                                referenceSequenceDictionaryBroadcast.getValue(),
+                                                cnvCallsBroadcast.getValue(),
                                                 sampleId).make()
                             )
                             .collect();
@@ -146,7 +144,7 @@ public class ContigChimericAlignmentIterativeInterpreter {
             if (filterAlignmentByMqOrLength) {
                 if (firstAlignmentIsTooShort(current, next, uniqueRefSpanThreshold)) {
                     continue;
-                } else if (AssemblyContigAlignmentsConfigPicker.simpleChimeraWithStichableAlignments(current, next)) {
+                } else if ( AlignedContig.simpleChimeraWithStichableAlignments(current, next)) {
                     continue;
                 } else if (nextAlignmentMayBeInsertion(current, next, mapQualThresholdInclusive, uniqueRefSpanThreshold, filterWhollyContainedAlignments)) {
                     if (iterator.hasNext()) {

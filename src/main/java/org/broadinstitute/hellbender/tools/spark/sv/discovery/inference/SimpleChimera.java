@@ -25,6 +25,9 @@ import java.util.List;
 @DefaultSerializer(SimpleChimera.Serializer.class)
 public class SimpleChimera {
 
+    static final int MORE_RELAXED_ALIGNMENT_MIN_LENGTH = 30;
+    static final int MORE_RELAXED_ALIGNMENT_MIN_MQ = 20;
+
     public final String sourceContigName;
 
     public final AlignmentInterval regionWithLowerCoordOnContig;
@@ -102,18 +105,16 @@ public class SimpleChimera {
      *  2) either alignment may consume only a "short" part of the contig, or if assuming that the alignment consumes
      *     roughly the same amount of ref bases and read bases, has isAlignment that is too short
      */
-    static boolean splitPairStrongEnoughEvidenceForCA(final AlignmentInterval intervalOne,
-                                                      final AlignmentInterval intervalTwo,
-                                                      final int mapQThresholdInclusive,
-                                                      final int alignmentLengthThresholdInclusive) {
+    public static boolean splitPairStrongEnoughEvidenceForCA(final AlignmentInterval intervalOne,
+                                                             final AlignmentInterval intervalTwo) {
 
-        if (intervalOne.mapQual < mapQThresholdInclusive || intervalTwo.mapQual < mapQThresholdInclusive)
+        if (intervalOne.mapQual < MORE_RELAXED_ALIGNMENT_MIN_MQ || intervalTwo.mapQual < MORE_RELAXED_ALIGNMENT_MIN_MQ)
             return false;
 
         // TODO: 2/2/18 improve annotation for alignment length: compared to #firstAlignmentIsTooShort(),
         // we are not subtracting alignments' overlap on the read, i.e. we are not filtering alignments based on their unique read span size,
         // but downstream analysis should have this information via an annotation, the current annotation is not up for this task
-        return Math.min(intervalOne.getSizeOnRead(), intervalTwo.getSizeOnRead()) >= alignmentLengthThresholdInclusive;
+        return Math.min(intervalOne.getSizeOnRead(), intervalTwo.getSizeOnRead()) >= MORE_RELAXED_ALIGNMENT_MIN_LENGTH;
     }
 
     /**

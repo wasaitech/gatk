@@ -24,10 +24,7 @@ import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscovery
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.AnnotatedVariantProducer;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoverFromLocalAssemblyContigAlignmentsSpark;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoveryInputMetaData;
-import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AlignedContig;
-import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AlignedContigGenerator;
-import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AlignmentInterval;
-import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.ContigAlignmentsModifier;
+import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.*;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.inference.ContigChimericAlignmentIterativeInterpreter;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.inference.ImpreciseVariantDetector;
 import org.broadinstitute.hellbender.tools.spark.sv.evidence.AlignedAssemblyOrExcuse;
@@ -412,7 +409,7 @@ public class StructuralVariationDiscoveryPipelineSpark extends GATKSparkTool {
                                     .collect(Collectors.toList()))
                     .filter(list -> !list.isEmpty())
                     .map(forOneContig ->
-                            SvDiscoverFromLocalAssemblyContigAlignmentsSpark.
+                            AssemblyContigAlignmentsConfigPicker.
                                     SAMFormattedContigAlignmentParser.
                                     parseReadsAndOptionallySplitGappedAlignments(forOneContig,
                                             DiscoverVariantsFromContigAlignmentsSparkArgumentCollection

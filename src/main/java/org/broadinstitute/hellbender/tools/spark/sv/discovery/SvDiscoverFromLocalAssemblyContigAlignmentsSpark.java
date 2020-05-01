@@ -1,8 +1,9 @@
 package org.broadinstitute.hellbender.tools.spark.sv.discovery;
 
-import com.google.common.annotations.VisibleForTesting;
-import htsjdk.samtools.*;
-import htsjdk.samtools.util.SequenceUtil;
+import htsjdk.samtools.SAMFileHeader;
+import htsjdk.samtools.SAMFileWriter;
+import htsjdk.samtools.SAMFileWriterFactory;
+import htsjdk.samtools.SAMSequenceDictionary;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.vcf.VCFHeaderLine;
@@ -22,11 +23,11 @@ import org.broadinstitute.hellbender.engine.filters.ReadFilter;
 import org.broadinstitute.hellbender.engine.filters.ReadFilterLibrary;
 import org.broadinstitute.hellbender.engine.filters.VariantFilter;
 import org.broadinstitute.hellbender.engine.spark.GATKSparkTool;
-import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection;
 import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryPipelineSpark;
-import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.*;
+import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigAlignmentsConfigPicker;
+import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigWithFineTunedAlignments;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.inference.CpxVariantInterpreter;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.inference.SegmentedCpxVariantSimpleVariantExtractor;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.inference.SimpleNovelAdjacencyInterpreter;
@@ -34,20 +35,15 @@ import org.broadinstitute.hellbender.tools.spark.sv.utils.GATKSVVCFConstants;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVIntervalTree;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVUtils;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVVCFWriter;
-import org.broadinstitute.hellbender.utils.Utils;
 import org.broadinstitute.hellbender.utils.io.IOUtils;
 import org.broadinstitute.hellbender.utils.read.GATKRead;
 import scala.Tuple2;
 
-import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection.DiscoverVariantsFromContigAlignmentsSparkArgumentCollection;
-import static org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection.DiscoverVariantsFromContigAlignmentsSparkArgumentCollection.GAPPED_ALIGNMENT_BREAK_DEFAULT_SENSITIVITY;
 import static org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigWithFineTunedAlignments.AlignmentSignatureBasicType.*;
 import static org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigWithFineTunedAlignments.ReasonForAlignmentClassificationFailure;
 
@@ -494,73 +490,4 @@ public final class SvDiscoverFromLocalAssemblyContigAlignmentsSpark extends GATK
 
     //==================================================================================================================
 
-    public static final class SAMFormattedContigAlignmentParser extends AlignedContigGenerator implements Serializable {
-        private static final long serialVersionUID = 1L;
-
-        private final JavaRDD<GATKRead> unfilteredContigAlignments;
-        private final SAMFileHeader header;
-        private final boolean splitGapped;
-
-        public SAMFormattedContigAlignmentParser(final JavaRDD<GATKRead> unfilteredContigAlignments,
-                                                 final SAMFileHeader header, final boolean splitGapped) {
-            this.unfilteredContigAlignments = unfilteredContigAlignments;
-            this.header = header;
-            this.splitGapped = splitGapped;
-        }
-
-        @Override
-        public JavaRDD<AlignedContig> getAlignedContigs() {
-            return unfilteredContigAlignments
-                    .filter(r -> !r.isSecondaryAlignment())
-                    .groupBy(GATKRead::getName)
-                    .map(Tuple2::_2)
-                    .map(gatkReads ->
-                            parseReadsAndOptionallySplitGappedAlignments(
-                                    Utils.stream(gatkReads).map(r->r.convertToSAMRecord(header)).collect(Collectors.toList()),
-                                    GAPPED_ALIGNMENT_BREAK_DEFAULT_SENSITIVITY, splitGapped));
-        }
-
-        /**
-         * Iterates through the input {@code noSecondaryAlignments}, which are assumed to contain no secondary alignment (i.e. records with "XA" tag),
-         * converts to custom {@link AlignmentInterval} format and
-         * split the records when the gap in the alignment reaches the specified {@code sensitivity}.
-         * The size of the returned iterable of {@link AlignmentInterval}'s is guaranteed to be no lower than that of the input iterable.
-         */
-        @VisibleForTesting
-        public static AlignedContig parseReadsAndOptionallySplitGappedAlignments(final Iterable<SAMRecord> noSecondaryAlignments,
-                                                                                 final int gapSplitSensitivity,
-                                                                                 final boolean splitGapped) {
-
-            Utils.validateArg(noSecondaryAlignments.iterator().hasNext(), "input collection of GATK reads is empty");
-
-            final SAMRecord primaryAlignment
-                    = Utils.stream(noSecondaryAlignments).filter(sam -> !sam.getSupplementaryAlignmentFlag())
-                    .findFirst()
-                    .orElseThrow(() -> new GATKException("no primary alignment for read " + noSecondaryAlignments.iterator().next().getReadName()));
-
-            Utils.validate(!primaryAlignment.getCigar().containsOperator(CigarOperator.H),
-                    "assumption that primary alignment does not contain hard clipping is invalid for read: " + primaryAlignment.toString());
-
-            final byte[] contigSequence = primaryAlignment.getReadBases().clone();
-            final List<AlignmentInterval> parsedAlignments;
-            if ( primaryAlignment.getReadUnmappedFlag() ) { // the Cigar
-                parsedAlignments = Collections.emptyList();
-            } else {
-                if (primaryAlignment.getReadNegativeStrandFlag()) {
-                    SequenceUtil.reverseComplement(contigSequence);
-                }
-
-                final Stream<AlignmentInterval> unSplitAIList = Utils.stream(noSecondaryAlignments).map(AlignmentInterval::new);
-                if (splitGapped) {
-                    final int unClippedContigLength = primaryAlignment.getReadLength();
-                    parsedAlignments = unSplitAIList.map(ar ->
-                            ContigAlignmentsModifier.splitGappedAlignment(ar, gapSplitSensitivity, unClippedContigLength))
-                            .flatMap(Utils::stream).collect(Collectors.toList());
-                } else {
-                    parsedAlignments = unSplitAIList.collect(Collectors.toList());
-                }
-            }
-            return new AlignedContig(primaryAlignment.getReadName(), contigSequence, parsedAlignments);
-        }
-    }
 }

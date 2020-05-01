@@ -12,8 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.broadinstitute.hellbender.GATKBaseTest;
-import org.broadinstitute.hellbender.engine.spark.datasources.ReferenceMultiSparkSource;
 import org.broadinstitute.hellbender.engine.spark.SparkContextFactory;
+import org.broadinstitute.hellbender.engine.spark.datasources.ReferenceMultiSparkSource;
+import org.broadinstitute.hellbender.testutils.VariantContextTestUtils;
 import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection;
 import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryPipelineSpark;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AlignmentInterval;
@@ -27,17 +28,13 @@ import org.broadinstitute.hellbender.tools.spark.sv.utils.SVInterval;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVIntervalTree;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.StrandedInterval;
 import org.broadinstitute.hellbender.utils.SimpleInterval;
-import org.broadinstitute.hellbender.testutils.VariantContextTestUtils;
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-import scala.Tuple2;
 
 import java.util.*;
 
-import static org.broadinstitute.hellbender.tools.spark.sv.discovery.AnnotatedVariantProducer.produceAnnotatedVcFromAssemblyEvidence;
-import static org.broadinstitute.hellbender.tools.spark.sv.discovery.AnnotatedVariantProducer.produceLinkedAssemblyBasedVariants;
 import static org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigWithFineTunedAlignments.NO_GOOD_MAPPING_TO_NON_CANONICAL_CHROMOSOME;
 import static org.broadinstitute.hellbender.tools.spark.sv.utils.GATKSVVCFConstants.*;
 import static org.mockito.Mockito.when;
@@ -83,10 +80,11 @@ public class AnnotatedVariantProducerUnitTest extends GATKBaseTest {
                                             final String linkKey,
                                             final List<VariantContext> expectedVariants) {
         if (inferredTypes.size() == 1) {
-            VariantContextTestUtils.assertVariantContextsAreEqual(produceAnnotatedVcFromAssemblyEvidence(inferredTypes.get(0), novelAdjacencyAndAssemblyEvidence, broadcastReference, broadcastSequenceDictionary, null, sampleId).make(),
+            VariantContextTestUtils.assertVariantContextsAreEqual(novelAdjacencyAndAssemblyEvidence.produceAnnotatedVcFromAssemblyEvidence(inferredTypes.get(0), broadcastSequenceDictionary.getValue(), null, sampleId).make(),
                     expectedVariants.get(0), Arrays.asList(CONTIG_NAMES, HQ_MAPPINGS), Collections.emptyList()); // these two are omitted because: 1) HQ_MAPPINGS equal testing code is wrong (saying "1"!=1), 2)CONTIG_NAMES will be tested in another test
         } else if (inferredTypes.size() == 2){
-            final List<VariantContext> variantContexts = produceLinkedAssemblyBasedVariants(new Tuple2<>(inferredTypes.get(0), inferredTypes.get(1)), novelAdjacencyAndAssemblyEvidence, broadcastReference, broadcastSequenceDictionary, null, sampleId, linkKey);
+            final List<VariantContext> variantContexts =
+                    novelAdjacencyAndAssemblyEvidence.produceLinkedAssemblyBasedVariants(inferredTypes.get(0), inferredTypes.get(1), broadcastSequenceDictionary.getValue(), null, sampleId, linkKey);
             VariantContextTestUtils.assertVariantContextsAreEqual(variantContexts.get(0),
                     expectedVariants.get(0), Arrays.asList(CONTIG_NAMES, HQ_MAPPINGS), Collections.emptyList());
             VariantContextTestUtils.assertVariantContextsAreEqual(variantContexts.get(1),
@@ -127,11 +125,10 @@ public class AnnotatedVariantProducerUnitTest extends GATKBaseTest {
                 .attribute(TOTAL_MAPPINGS, 2).attribute(HQ_MAPPINGS, 0).attribute(MAPPING_QUALITIES, "38,21").attribute(ALIGN_LENGTHS, "71,71").attribute(MAX_ALIGN_LENGTH, 71)
                 .attribute(SEQ_ALT_HAPLOTYPE, "TTATCTGCATGTATGTAG").attribute(INSERTED_SEQUENCE, "TTATCTGCATGTATGTAG").attribute(INSERTED_SEQUENCE_LENGTH, 18)
                 .attribute(INSERTED_SEQUENCE_MAPPINGS, "500_620_chr3:90319741-90319861_-_499H121M_0_11_66_O").attribute(CTG_GOOD_NONCANONICAL_MAPPING, "chrUn_KN707904v1_decoy,742,+,620M,60,8,580,chrUn_KN707904v1_decoy,604,+,633M,60,10,583").make();
-        VariantContext actual = AnnotatedVariantProducer.produceAnnotatedVcFromAssemblyEvidence(del_chr20_28831535_29212083, simpleNovelAdjacencyAndChimericAlignmentEvidence, referenceBroadcast, refSeqDictBroadcast, null, "testSample").make();
+        VariantContext actual = simpleNovelAdjacencyAndChimericAlignmentEvidence.produceAnnotatedVcFromAssemblyEvidence(del_chr20_28831535_29212083, refSeqDictBroadcast.getValue(), null, "testSample").make();
         VariantContextTestUtils.assertVariantContextsAreEqual(actual, expected, Collections.singletonList(HQ_MAPPINGS), Collections.emptyList());
 
         // cnv call available
-        referenceBroadcast = testSparkContext.broadcast(TestUtilsForAssemblyBasedSVDiscovery.b37_reference);
         refSeqDictBroadcast = testSparkContext.broadcast(TestUtilsForAssemblyBasedSVDiscovery.b37_seqDict);
         final SAMFileHeader samFileHeader = new SAMFileHeader(refSeqDictBroadcast.getValue());
         SAMReadGroupRecord test = new SAMReadGroupRecord("test");
@@ -159,7 +156,7 @@ public class AnnotatedVariantProducerUnitTest extends GATKBaseTest {
                 .attribute(SVLEN, -3369).attribute(SVTYPE, "DEL").attribute(CONTIG_NAMES, "asm000000:tig00006,asm000001:tig00001").attribute(TOTAL_MAPPINGS, 2)
                 .attribute(HQ_MAPPINGS, 2).attribute(MAPPING_QUALITIES, "60,60").attribute(ALIGN_LENGTHS, "229,417").attribute(MAX_ALIGN_LENGTH, 417).attribute(HOMOLOGY, "GAGGAA")
                 .attribute(HOMOLOGY_LENGTH, 6).attribute(EXTERNAL_CNV_CALLS, "CNV_21_43350200_43353400:1:80").make();
-        actual = AnnotatedVariantProducer.produceAnnotatedVcFromAssemblyEvidence(del_21_43350116_43353485, simpleNovelAdjacencyAndChimericAlignmentEvidence, referenceBroadcast, refSeqDictBroadcast, cnvCallsBroadcast, "sample").make();
+        actual = simpleNovelAdjacencyAndChimericAlignmentEvidence.produceAnnotatedVcFromAssemblyEvidence(del_21_43350116_43353485, refSeqDictBroadcast.getValue(), cnvCallsBroadcast.getValue(), "sample").make();
         VariantContextTestUtils.assertVariantContextsAreEqual(actual, expected, Collections.singletonList(HQ_MAPPINGS), Collections.emptyList());
     }
 

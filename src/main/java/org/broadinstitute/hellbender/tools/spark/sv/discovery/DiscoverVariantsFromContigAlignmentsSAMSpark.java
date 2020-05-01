@@ -20,6 +20,7 @@ import org.broadinstitute.hellbender.engine.spark.GATKSparkTool;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryPipelineSpark;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AlignedContig;
+import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigAlignmentsConfigPicker;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.inference.ContigChimericAlignmentIterativeInterpreter;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVIntervalTree;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVUtils;
@@ -135,8 +136,7 @@ public final class DiscoverVariantsFromContigAlignmentsSAMSpark extends GATKSpar
                         getHeaderForReads(), getReference(), getDefaultToolVCFHeaderLines(), localLogger);
 
         final JavaRDD<AlignedContig> parsedContigAlignments =
-                new SvDiscoverFromLocalAssemblyContigAlignmentsSpark
-                        .SAMFormattedContigAlignmentParser(getReads(),
+                new AssemblyContigAlignmentsConfigPicker.SAMFormattedContigAlignmentParser(getReads(),
                                                            svDiscoveryInputMetaData.getSampleSpecificData().getHeaderBroadcast().getValue(), true)
                         .getAlignedContigs();
 
