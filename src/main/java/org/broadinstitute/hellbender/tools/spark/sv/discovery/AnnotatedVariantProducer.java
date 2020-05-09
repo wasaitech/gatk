@@ -6,7 +6,8 @@ import htsjdk.variant.variantcontext.StructuralVariantType;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
 import org.apache.logging.log4j.Logger;
-import org.broadinstitute.hellbender.engine.spark.datasources.ReferenceMultiSparkSource;
+import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection;
+import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection.DiscoverVariantsFromContigAlignmentsSparkArgumentCollection;
 import org.broadinstitute.hellbender.tools.spark.sv.evidence.EvidenceTargetLink;
 import org.broadinstitute.hellbender.tools.spark.sv.evidence.ReadMetadata;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.*;
@@ -14,11 +15,8 @@ import org.broadinstitute.hellbender.utils.Utils;
 import scala.Tuple2;
 
 import java.io.Serializable;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
-
-import static org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection.DiscoverVariantsFromContigAlignmentsSparkArgumentCollection;
 
 /**
  * Given identified pair of breakpoints for a simple SV and its supportive evidence, i.e. chimeric alignments,
@@ -47,18 +45,16 @@ public class AnnotatedVariantProducer implements Serializable {
     public static List<VariantContext> annotateBreakpointBasedCallsWithImpreciseEvidenceLinks(final List<VariantContext> assemblyDiscoveredVariants,
                                                                                               final PairedStrandedIntervalTree<EvidenceTargetLink> evidenceTargetLinks,
                                                                                               final ReadMetadata metadata,
-                                                                                              final ReferenceMultiSparkSource reference,
+                                                                                              final SAMSequenceDictionary refDict,
                                                                                               final DiscoverVariantsFromContigAlignmentsSparkArgumentCollection parameters,
                                                                                               final Logger localLogger) {
 
         final int originalEvidenceLinkSize = evidenceTargetLinks.size();
         final List<VariantContext> result = assemblyDiscoveredVariants
                 .stream()
-                .map(variant -> annotateWithImpreciseEvidenceLinks(
-                        variant,
-                        evidenceTargetLinks,
-                        reference.getReferenceSequenceDictionary(null),
-                        metadata, parameters.assemblyImpreciseEvidenceOverlapUncertainty))
+                .map(variant ->
+                        annotateWithImpreciseEvidenceLinks(variant, evidenceTargetLinks, refDict, metadata,
+                                                        parameters.assemblyImpreciseEvidenceOverlapUncertainty))
                 .collect(Collectors.toList());
         localLogger.info("Used " + (originalEvidenceLinkSize - evidenceTargetLinks.size()) + " evidence target links to annotate assembled breakpoints");
         return result;
@@ -108,5 +104,52 @@ public class AnnotatedVariantProducer implements Serializable {
         return String.join(",",
                 String.valueOf(ciInterval.getStart() - point),
                 String.valueOf(ciInterval.getEnd() - point));
+    }
+
+    /**
+     * Apply filters (that implements {@link SvDiscoverFromLocalAssemblyContigAlignmentsSpark.StructuralVariantFilter}) given list of variants,
+     * and write the variants to a single VCF file.
+     * @param variants variants to which filters are to be applied and written to file
+     */
+    public static List<VariantContext> filterMergedVCF( final List<VariantContext> variants,
+                                                        final DiscoverVariantsFromContigAlignmentsSparkArgumentCollection discoveryArgs ) {
+        final List<VariantContext> variantsWithFilterApplied = new ArrayList<>(variants.size());
+        final List<SvDiscoverFromLocalAssemblyContigAlignmentsSpark.StructuralVariantFilter> filters = Arrays.asList(
+                new SvDiscoverFromLocalAssemblyContigAlignmentsSpark.SVMappingQualityFilter(discoveryArgs.minMQ),
+                new SvDiscoverFromLocalAssemblyContigAlignmentsSpark.SVAlignmentLengthFilter(discoveryArgs.minAlignLength));
+        for (final VariantContext variant : variants) {
+            String svType = variant.getAttributeAsString(GATKSVVCFConstants.SVTYPE, "");
+            if (svType.equals(GATKSVVCFConstants.SYMB_ALT_ALLELE_DEL) || svType.equals(GATKSVVCFConstants.SYMB_ALT_ALLELE_INS) || svType.equals(GATKSVVCFConstants.SYMB_ALT_ALLELE_DUP)) {
+                if (Math.abs(variant.getAttributeAsInt(GATKSVVCFConstants.SVLEN, 0)) < StructuralVariationDiscoveryArgumentCollection.STRUCTURAL_VARIANT_SIZE_LOWER_BOUND )
+                    continue;
+            }
+            variantsWithFilterApplied.add(applyFilters(variant, filters));
+        }
+        return variantsWithFilterApplied;
+    }
+
+    /**
+     * Filters out variants by testing against provided
+     * filter key, threshold.
+     *
+     * Variants with value below specified threshold (or null value)
+     * are filtered out citing given reason.
+     *
+     * @throws ClassCastException if the value corresponding to provided key cannot be casted as a {@link Double}
+     */
+    private static VariantContext applyFilters(final VariantContext variantContext,
+                                               final List<SvDiscoverFromLocalAssemblyContigAlignmentsSpark.StructuralVariantFilter> filters) {
+
+        final Set<String> appliedFilters = new HashSet<>();
+        for (final SvDiscoverFromLocalAssemblyContigAlignmentsSpark.StructuralVariantFilter filter : filters) {
+            if ( !filter.test(variantContext) )
+                appliedFilters.add(filter.getName());
+        }
+
+        if (appliedFilters.isEmpty())
+            return variantContext;
+        else {
+            return new VariantContextBuilder(variantContext).filters(appliedFilters).make();
+        }
     }
 }

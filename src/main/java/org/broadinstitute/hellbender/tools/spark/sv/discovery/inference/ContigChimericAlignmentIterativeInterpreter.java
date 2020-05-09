@@ -7,13 +7,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.broadcast.Broadcast;
+import org.broadinstitute.hellbender.engine.BasicReference;
 import org.broadinstitute.hellbender.engine.spark.datasources.ReferenceMultiSparkSource;
 import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SimpleSVType;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoveryInputMetaData;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.SvDiscoveryUtils;
-import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.*;
+import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AlignedContig;
+import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AlignmentInterval;
+import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigWithFineTunedAlignments;
+import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.StrandSwitch;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVInterval;
 import org.broadinstitute.hellbender.tools.spark.sv.utils.SVIntervalTree;
 import scala.Tuple2;
@@ -113,7 +117,6 @@ public class ContigChimericAlignmentIterativeInterpreter {
      * @param mapQualThresholdInclusive
      * @param filterWhollyContainedAlignments
      */
-    @VisibleForTesting
     public static List<SimpleChimera> parseOneContig(final AlignedContig alignedContig,
                                                      final SAMSequenceDictionary referenceDictionary,
                                                      final boolean filterAlignmentByMqOrLength,
@@ -203,9 +206,8 @@ public class ContigChimericAlignmentIterativeInterpreter {
 
     // =================================================================================================================
 
-    @VisibleForTesting
     public static SimpleSVType inferSimpleTypeFromNovelAdjacency(final NovelAdjacencyAndAltHaplotype novelAdjacencyAndAltHaplotype,
-                                                                 final ReferenceMultiSparkSource reference) {
+                                                                 final BasicReference reference) {
 
         final int start = novelAdjacencyAndAltHaplotype.getLeftJustifiedLeftRefLoc().getEnd();
         final int end = novelAdjacencyAndAltHaplotype.getLeftJustifiedRightRefLoc().getStart();

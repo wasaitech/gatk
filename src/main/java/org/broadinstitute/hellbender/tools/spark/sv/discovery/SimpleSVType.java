@@ -57,7 +57,7 @@ public abstract class SimpleSVType extends SvType {
         // TODO: 6/12/18 note the following implementation sets POS and REF at the anchor base, which is not requested by the VCF spec
         // TODO: 6/12/18 also, this interface lets one call inversion with SVLEN !=0, which is not the same as VCF spec examples
         public Inversion(final NovelAdjacencyAndAltHaplotype novelAdjacencyAndAltHaplotype, final int svLength,
-                         final ReferenceMultiSparkSource reference) {
+                         final BasicReference reference) {
             super(novelAdjacencyAndAltHaplotype.getLeftJustifiedLeftRefLoc().getContig(),
                     novelAdjacencyAndAltHaplotype.getLeftJustifiedLeftRefLoc().getStart(),
                     novelAdjacencyAndAltHaplotype.getLeftJustifiedRightRefLoc().getEnd(),

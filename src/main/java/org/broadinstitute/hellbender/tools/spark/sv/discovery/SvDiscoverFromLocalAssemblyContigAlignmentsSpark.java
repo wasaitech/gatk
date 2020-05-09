@@ -5,7 +5,6 @@ import htsjdk.samtools.SAMFileWriter;
 import htsjdk.samtools.SAMFileWriterFactory;
 import htsjdk.samtools.SAMSequenceDictionary;
 import htsjdk.variant.variantcontext.VariantContext;
-import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.vcf.VCFHeaderLine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,7 +23,6 @@ import org.broadinstitute.hellbender.engine.filters.ReadFilterLibrary;
 import org.broadinstitute.hellbender.engine.filters.VariantFilter;
 import org.broadinstitute.hellbender.engine.spark.GATKSparkTool;
 import org.broadinstitute.hellbender.exceptions.UserException;
-import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryArgumentCollection;
 import org.broadinstitute.hellbender.tools.spark.sv.StructuralVariationDiscoveryPipelineSpark;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigAlignmentsConfigPicker;
 import org.broadinstitute.hellbender.tools.spark.sv.discovery.alignment.AssemblyContigWithFineTunedAlignments;
@@ -166,7 +164,13 @@ public final class SvDiscoverFromLocalAssemblyContigAlignmentsSpark extends GATK
                 dispatchJobs(ctx, contigsByPossibleRawTypes, svDiscoveryInputMetaData, assemblyRawAlignments, writeSAMFiles);
         contigsByPossibleRawTypes.unpersist();
 
-        filterAndWriteMergedVCF(outputPrefixWithSampleName, variants, svDiscoveryInputMetaData);
+        final List<VariantContext> filteredVariants =
+                AnnotatedVariantProducer.filterMergedVCF(variants, svDiscoveryInputMetaData.getDiscoverStageArgs());
+        final String out = outputPrefixWithSampleName + MERGED_VCF_FILE_NAME;
+        SVVCFWriter.writeVCF(filteredVariants, out,
+                svDiscoveryInputMetaData.getReferenceData().getReferenceSequenceDictionaryBroadcast().getValue(),
+                svDiscoveryInputMetaData.getDefaultToolVCFHeaderLines(),
+                svDiscoveryInputMetaData.getToolLogger());
     }
 
 
@@ -370,61 +374,6 @@ public final class SvDiscoverFromLocalAssemblyContigAlignmentsSpark extends GATK
     }
 
     //==================================================================================================================
-
-    /**
-     * Apply filters (that implements {@link StructuralVariantFilter}) given list of variants,
-     * and write the variants to a single VCF file.
-     * @param outputPrefixWithSampleName    prefix with sample name
-     * @param variants                      variants to which filters are to be applied and written to file
-     * @param svDiscoveryInputMetaData      metadata for use in filtering and file output
-     */
-    public static void filterAndWriteMergedVCF(final String outputPrefixWithSampleName,
-                                               final List<VariantContext> variants,
-                                               final SvDiscoveryInputMetaData svDiscoveryInputMetaData) {
-        final List<VariantContext> variantsWithFilterApplied = new ArrayList<>(variants.size());
-        final List<StructuralVariantFilter> filters = Arrays.asList(
-                new SVMappingQualityFilter(svDiscoveryInputMetaData.getDiscoverStageArgs().minMQ),
-                new SVAlignmentLengthFilter(svDiscoveryInputMetaData.getDiscoverStageArgs().minAlignLength));
-        for (final VariantContext variant : variants) {
-            String svType = variant.getAttributeAsString(GATKSVVCFConstants.SVTYPE, "");
-            if (svType.equals(GATKSVVCFConstants.SYMB_ALT_ALLELE_DEL) || svType.equals(GATKSVVCFConstants.SYMB_ALT_ALLELE_INS) || svType.equals(GATKSVVCFConstants.SYMB_ALT_ALLELE_DUP)) {
-                if (Math.abs(variant.getAttributeAsInt(GATKSVVCFConstants.SVLEN, 0)) < StructuralVariationDiscoveryArgumentCollection.STRUCTURAL_VARIANT_SIZE_LOWER_BOUND )
-                    continue;
-            }
-            variantsWithFilterApplied.add(applyFilters(variant, filters));
-        }
-
-        final String out = outputPrefixWithSampleName + MERGED_VCF_FILE_NAME;
-        SVVCFWriter.writeVCF(variantsWithFilterApplied, out,
-                svDiscoveryInputMetaData.getReferenceData().getReferenceSequenceDictionaryBroadcast().getValue(),
-                svDiscoveryInputMetaData.getDefaultToolVCFHeaderLines(),
-                svDiscoveryInputMetaData.getToolLogger());
-    }
-
-    /**
-     * Filters out variants by testing against provided
-     * filter key, threshold.
-     *
-     * Variants with value below specified threshold (or null value)
-     * are filtered out citing given reason.
-     *
-     * @throws ClassCastException if the value corresponding to provided key cannot be casted as a {@link Double}
-     */
-    private static VariantContext applyFilters(final VariantContext variantContext,
-                                               final List<StructuralVariantFilter> filters) {
-
-        final Set<String> appliedFilters = new HashSet<>();
-        for (final StructuralVariantFilter filter : filters) {
-            if ( !filter.test(variantContext) )
-                appliedFilters.add(filter.getName());
-        }
-
-        if (appliedFilters.isEmpty())
-            return variantContext;
-        else {
-            return new VariantContextBuilder(variantContext).filters(appliedFilters).make();
-        }
-    }
 
     public interface StructuralVariantFilter extends VariantFilter {
 
