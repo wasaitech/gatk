@@ -179,23 +179,7 @@ public final class HaplotypeCallerEngine implements AssemblyRegionEvaluator {
     public HaplotypeCallerEngine(final HaplotypeCallerArgumentCollection hcArgs, AssemblyRegionArgumentCollection assemblyRegionArgs, boolean createBamOutIndex,
                                  boolean createBamOutMD5, final SAMFileHeader readsHeader,
                                  String referencePath, VariantAnnotatorEngine annotationEngine) {
-        this.hcArgs = Utils.nonNull(hcArgs);
-        this.readsHeader = Utils.nonNull(readsHeader);
-        this.referenceReader = Utils.nonNull(new CachingIndexedFastaSequenceFile(IOUtils.getPath(referencePath)));
-        this.annotationEngine = Utils.nonNull(annotationEngine);
-        this.aligner = SmithWatermanAligner.getAligner(hcArgs.smithWatermanImplementation);
-        trimmer = new AssemblyRegionTrimmer(assemblyRegionArgs, readsHeader.getSequenceDictionary());
-        forceCallingAllelesPresent = hcArgs.alleles != null;
-        initialize(createBamOutIndex, createBamOutMD5);
-        if (hcArgs.assemblyStateOutput != null) {
-            try {
-                assemblyDebugOutStream = new PrintStream(Files.newOutputStream(IOUtils.getPath(hcArgs.assemblyStateOutput)));
-            } catch (IOException e) {
-                throw new UserException.CouldNotCreateOutputFile(hcArgs.assemblyStateOutput, "Provided argument for assembly debug graph location could not be created");
-            }
-        } else {
-            assemblyDebugOutStream = null;
-        }
+        this(hcArgs, assemblyRegionArgs, createBamOutIndex, createBamOutMD5, readsHeader, new CachingIndexedFastaSequenceFile(IOUtils.getPath(referencePath)), annotationEngine);
     }
 
     /**
