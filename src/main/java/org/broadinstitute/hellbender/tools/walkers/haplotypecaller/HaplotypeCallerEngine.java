@@ -30,6 +30,7 @@ import org.broadinstitute.hellbender.utils.SimpleInterval;
 import org.broadinstitute.hellbender.utils.Utils;
 import org.broadinstitute.hellbender.utils.activityprofile.ActivityProfileState;
 import org.broadinstitute.hellbender.utils.downsampling.AlleleBiasedDownsamplingUtils;
+import org.broadinstitute.hellbender.utils.fasta.CachingIndexedFastaSequenceFile;
 import org.broadinstitute.hellbender.utils.genotyper.AlleleLikelihoods;
 import org.broadinstitute.hellbender.utils.genotyper.IndexedSampleList;
 import org.broadinstitute.hellbender.utils.genotyper.SampleList;
@@ -159,6 +160,28 @@ public final class HaplotypeCallerEngine implements AssemblyRegionEvaluator {
         this.hcArgs = Utils.nonNull(hcArgs);
         this.readsHeader = Utils.nonNull(readsHeader);
         this.referenceReader = Utils.nonNull(referenceReader);
+        this.annotationEngine = Utils.nonNull(annotationEngine);
+        this.aligner = SmithWatermanAligner.getAligner(hcArgs.smithWatermanImplementation);
+        trimmer = new AssemblyRegionTrimmer(assemblyRegionArgs, readsHeader.getSequenceDictionary());
+        forceCallingAllelesPresent = hcArgs.alleles != null;
+        initialize(createBamOutIndex, createBamOutMD5);
+        if (hcArgs.assemblyStateOutput != null) {
+            try {
+                assemblyDebugOutStream = new PrintStream(Files.newOutputStream(IOUtils.getPath(hcArgs.assemblyStateOutput)));
+            } catch (IOException e) {
+                throw new UserException.CouldNotCreateOutputFile(hcArgs.assemblyStateOutput, "Provided argument for assembly debug graph location could not be created");
+            }
+        } else {
+            assemblyDebugOutStream = null;
+        }
+    }
+
+    public HaplotypeCallerEngine(final HaplotypeCallerArgumentCollection hcArgs, AssemblyRegionArgumentCollection assemblyRegionArgs, boolean createBamOutIndex,
+                                 boolean createBamOutMD5, final SAMFileHeader readsHeader,
+                                 String referencePath, VariantAnnotatorEngine annotationEngine) {
+        this.hcArgs = Utils.nonNull(hcArgs);
+        this.readsHeader = Utils.nonNull(readsHeader);
+        this.referenceReader = Utils.nonNull(new CachingIndexedFastaSequenceFile(IOUtils.getPath(referencePath)));
         this.annotationEngine = Utils.nonNull(annotationEngine);
         this.aligner = SmithWatermanAligner.getAligner(hcArgs.smithWatermanImplementation);
         trimmer = new AssemblyRegionTrimmer(assemblyRegionArgs, readsHeader.getSequenceDictionary());
