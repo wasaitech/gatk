@@ -30,6 +30,7 @@ import org.broadinstitute.hellbender.utils.SimpleInterval;
 import org.broadinstitute.hellbender.utils.Utils;
 import org.broadinstitute.hellbender.utils.activityprofile.ActivityProfileState;
 import org.broadinstitute.hellbender.utils.downsampling.AlleleBiasedDownsamplingUtils;
+import org.broadinstitute.hellbender.utils.fasta.CachingIndexedFastaSequenceFile;
 import org.broadinstitute.hellbender.utils.genotyper.AlleleLikelihoods;
 import org.broadinstitute.hellbender.utils.genotyper.IndexedSampleList;
 import org.broadinstitute.hellbender.utils.genotyper.SampleList;
@@ -173,6 +174,12 @@ public final class HaplotypeCallerEngine implements AssemblyRegionEvaluator {
         } else {
             assemblyDebugOutStream = null;
         }
+    }
+
+    public HaplotypeCallerEngine(final HaplotypeCallerArgumentCollection hcArgs, AssemblyRegionArgumentCollection assemblyRegionArgs, boolean createBamOutIndex,
+                                 boolean createBamOutMD5, final SAMFileHeader readsHeader,
+                                 String referencePath, VariantAnnotatorEngine annotationEngine) {
+        this(hcArgs, assemblyRegionArgs, createBamOutIndex, createBamOutMD5, readsHeader, new CachingIndexedFastaSequenceFile(IOUtils.getPath(referencePath)), annotationEngine);
     }
 
     /**
